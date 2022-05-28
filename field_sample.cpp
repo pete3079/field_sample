@@ -14,14 +14,14 @@ FIL file_object;
 WAV_FormatTypeDef header;
 
 unsigned long int sample_size=0;
-int16_t DSY_SDRAM_BSS buff[2000000];
-int16_t DSY_SDRAM_BSS dn[2000000];
-float DSY_SDRAM_BSS sample_space[8][1000000];
+const long int buffer_size=15000000, snip_size=1000000;
+int16_t DSY_SDRAM_BSS buff[buffer_size];
+float DSY_SDRAM_BSS sample_space[8][snip_size];
 
 int mode=0;
 float speed=1.0;
 float first, last;
-int32_t idx, idx_0, idx_1;
+unsigned long int idx, idx_0, idx_1;
 void UpdateDisplay(char c[32],bool um);
 class FieldSample{
 	public:
@@ -43,18 +43,18 @@ class FieldSample{
 			}
 			return(0.0);
 		}
-		void CopySample(int32_t s, int32_t f, int n, float spd){
+		void CopySample(unsigned long int s, unsigned long int f, int n, float spd){
 			key_id=n;
-			int32_t size=abs(f-s);
-			if(size>1000000)size=1000000;
+			long int size=labs(f-s);
+			if(size>snip_size)size=snip_size;
 			char message[32];
-			snprintf(message,32,"key=%d size=%ld",n,size);
+			snprintf(message,32,"key=%d spd=%d",n,int(spd));
 			UpdateDisplay(message,true);
-			for(int32_t i=0;i<size;i++){
+			for(long int i=0;i<size;i++){
 				if ( spd > 0){
-					sample_space[key_id][last_idx+i]=s162f(dn[s+i]);
+					sample_space[key_id][last_idx+i]=s162f(buff[s+i]);
 				}else{
-					sample_space[key_id][last_idx+i]=s162f(dn[f-i]);
+					sample_space[key_id][last_idx+i]=s162f(buff[f-i]);
 				}
 			}
 			speed=spd;
@@ -69,15 +69,15 @@ class FieldSample{
 		float speed;
 		// starting index
 		int key_id;
-		int32_t idx, idx_0, idx_1, size;
+		unsigned long int idx, idx_0, idx_1, size;
 		bool loop, active;
-		static int32_t last_idx;
+		static unsigned long int last_idx;
 };
 
 size_t num_samples=8, num_active=0;
 std::vector<FieldSample> samples(num_samples);
 
-int32_t FieldSample::last_idx=0;
+unsigned long int FieldSample::last_idx=0;
 
 // Use two side buttons to change octaves.
 float knob_vals[8];
@@ -107,11 +107,11 @@ void AudioCallback(AudioHandle::InterleavingInputBuffer  in, AudioHandle::Interl
 			samps=samps/float(num_active);
 		}else{
 			if(idx_1>idx_0){
-				samps=s162f(dn[idx++]);
+				samps=s162f(buff[idx++]);
 				if(idx>=idx_1)idx=idx_0;
 				if(idx<=idx_0)idx=idx_0;
 			}else{
-				samps=s162f(dn[idx--]);
+				samps=s162f(buff[idx--]);
 				if(idx<=idx_0)idx=idx_1;
 				if(idx>idx_1)idx=idx_1;
 			}
@@ -122,7 +122,8 @@ void AudioCallback(AudioHandle::InterleavingInputBuffer  in, AudioHandle::Interl
 
 
 
-uint32_t display_time=0, led_time=0, adsr_time=0, wf_time=0, octave_time=0;
+unsigned long int display_time=0, led_time=0, adsr_time=0, wf_time=0, octave_time=0;
+
 void UpdateKeyboardLeds(){
 	uint8_t led_grp[] = {
 		DaisyField::LED_KEY_A1,
@@ -179,19 +180,22 @@ void UpdateDisplay(char c[32], bool message_only){
 		snprintf(line1,32,"%ld %ld",idx_0,idx_1);
 		field.display.SetCursor(0,20);
 		field.display.WriteString(line1, Font_7x10 , true);
-		snprintf(line1,32,"%2d",mode);
+		snprintf(line1,32,"%2d",int(speed*10));
 		field.display.SetCursor(0,35);
 		field.display.WriteString(line1, Font_7x10 , true);
-		field.display.SetCursor(0,40);
+		field.display.SetCursor(0,45);
 		field.display.WriteString(c, Font_7x10 , true);
 	}
 	field.display.Update();
 }
 
 void UpdateControls(){
-	speed=knob_vals[0];
-	idx_0=int(knob_vals[1]*sample_size);
-	idx_1=int(knob_vals[2]*sample_size);
+	speed=4.0*knob_vals[0];
+	if(knob_vals[7]<0.5)speed=-speed;
+	idx_0=int(knob_vals[1]*sample_size/100)*100;
+	idx_0=idx_0+int(knob_vals[2]*sample_size/10);
+	idx_1=int(knob_vals[3]*sample_size/100)*100;
+	idx_1=idx_1+int(knob_vals[4]*sample_size/10);
 	for(size_t j = 0; j < num_samples; j++){
 		if(key_vals[j]) {
 			if(mode==0){
@@ -222,13 +226,18 @@ void sdcard_init() {
 	if (f_open(&file_object, "mono.wav", FA_READ) == FR_OK) {
 		UINT bytes_read = 0;
 		f_read(&file_object, &header, sizeof(header), &bytes_read);
-		f_read(&file_object, &buff,  header.FileSize, &bytes_read);
+		unsigned long int file_size = header.FileSize;
+		sample_size=header.FileSize/2;
+		if ( sample_size > buffer_size){
+		       	file_size=2*buffer_size;
+			sample_size=buffer_size;
+		}
+		f_read(&file_object, &buff,  file_size, &bytes_read);
 	}
-	sample_size=header.FileSize/2;
 	idx=0;
 	idx_0=0;
 	idx_1=sample_size;
-	for(unsigned long int i=0;i<sample_size;i++)dn[i]=buff[i+sizeof(header)];
+	for(unsigned long int i=0;i<sample_size;i++)buff[i]=buff[i+sizeof(header)];
 
 }
 
