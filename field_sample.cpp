@@ -122,7 +122,7 @@ void AudioCallback(AudioHandle::InterleavingInputBuffer  in, AudioHandle::Interl
 
 
 
-unsigned long int display_time=0, led_time=0, adsr_time=0, wf_time=0, octave_time=0;
+unsigned long int display_time=0, led_time=0, adsr_time=0, wf_time=0, octave_time=0, copy_time=0;
 
 void UpdateKeyboardLeds(){
 	uint8_t led_grp[] = {
@@ -164,7 +164,7 @@ void UpdateKeyboardLeds(){
 
 void UpdateDisplay(char c[32], bool message_only){
 	//display
-	char line1[32];
+	char line1[32], line2[32], line3[32];
 	if(message_only){
 		field.display.Fill(false);
 		field.display.SetCursor(0,0);
@@ -173,16 +173,16 @@ void UpdateDisplay(char c[32], bool message_only){
 
 	if(System::GetNow()>display_time){
 		display_time=System::GetNow()+1000;
-		snprintf(line1,32,"%ld %ld\n",idx,sample_size);
+		snprintf(line1,32,"%ld %ld\n",idx_0,idx_1);
+		snprintf(line2,32,"%ld %ld %ld",samples[0].idx,samples[0].idx_0,samples[0].idx_1);
+		snprintf(line3,32,"%2d",int(samples[0].speed*10));
 		field.display.Fill(false);
 		field.display.SetCursor(0,0);
 		field.display.WriteString(line1, Font_7x10 , true);
-		snprintf(line1,32,"%ld %ld",idx_0,idx_1);
 		field.display.SetCursor(0,20);
-		field.display.WriteString(line1, Font_7x10 , true);
-		snprintf(line1,32,"%2d",int(speed*10));
+		field.display.WriteString(line2, Font_7x10 , true);
 		field.display.SetCursor(0,35);
-		field.display.WriteString(line1, Font_7x10 , true);
+		field.display.WriteString(line3, Font_7x10 , true);
 		field.display.SetCursor(0,45);
 		field.display.WriteString(c, Font_7x10 , true);
 	}
@@ -195,11 +195,14 @@ void UpdateControls(){
 	idx_0=int(knob_vals[1]*sample_size/100)*100;
 	idx_0=idx_0+int(knob_vals[2]*sample_size/10);
 	idx_1=int(knob_vals[3]*sample_size/100)*100;
-	idx_1=idx_1+int(knob_vals[4]*sample_size/10);
+	if(idx_1>=sample_size)idx_1=sample_size;
 	for(size_t j = 0; j < num_samples; j++){
 		if(key_vals[j]) {
 			if(mode==0){
-				samples[j].CopySample(idx_0,idx_1,j,speed);
+	                        if(System::GetNow()>copy_time){
+				    copy_time=System::GetNow()+1000;
+				    samples[j].CopySample(idx_0,idx_1,j,speed);
+				}
 			}else{
 				samples[j].Active(true);
 				if(key_vals[j+8])samples[j].loop=true;
