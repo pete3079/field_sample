@@ -23,22 +23,40 @@ float speed=1.0;
 float first, last;
 unsigned long int idx, idx_0, idx_1;
 void UpdateDisplay(char c[32],bool um);
+char message[32];
 class FieldSample{
 	public:
 		bool Active(bool activate=false){
 			if(activate){
 				active=true;
 				idx=idx_0;
+				step_location=0.0;
 			}
 			return(active);
 		}
 		float Next(){
 			if(active){
-				if(idx<idx_1)return(sample_space[key_id][idx++]);
+				// less than the last id and speed = 1
+				// if(idx<idx_1 and speed == 1)return(sample_space[key_id][idx++]);
+				// speed != 1 and slow
+				step_location+=speed;
+				idx=int(step_location);
+				if(idx<idx_0 or idx>idx_1){
+			           snprintf(message,32,"ERROR idx:%ld",idx);
+				   sleep(2);
+			           UpdateDisplay(message,true);
+				   sleep(2);
+
+				}
+				if(idx+1<=idx_1){
+					percent=step_location-float(idx);
+					return((1.0-percent)*sample_space[key_id][idx]+percent*sample_space[key_id][idx+1]);
+				}
 				if(!loop){
 					active=false;
 				}else{
 					idx=idx_0;
+					step_location=0;
 				}
 			}
 			return(0.0);
@@ -47,7 +65,6 @@ class FieldSample{
 			key_id=n;
 			long int size=labs(f-s);
 			if(size>snip_size)size=snip_size;
-			char message[32];
 			snprintf(message,32,"key=%d spd=%d",n,int(spd));
 			UpdateDisplay(message,true);
 			for(long int i=0;i<size;i++){
@@ -57,7 +74,7 @@ class FieldSample{
 					sample_space[key_id][last_idx+i]=s162f(buff[f-i]);
 				}
 			}
-			speed=spd;
+			speed=fabs(spd);
 			idx_0=last_idx;
 			idx_1=last_idx+size;
 			last_idx=idx_1;
@@ -66,7 +83,7 @@ class FieldSample{
 
 		// private:
 		// playback speed
-		float speed;
+		float speed, step_location, percent;
 		// starting index
 		int key_id;
 		unsigned long int idx, idx_0, idx_1, size;
@@ -175,7 +192,7 @@ void UpdateDisplay(char c[32], bool message_only){
 		display_time=System::GetNow()+1000;
 		snprintf(line1,32,"%ld %ld\n",idx_0,idx_1);
 		snprintf(line2,32,"%ld %ld %ld",samples[0].idx,samples[0].idx_0,samples[0].idx_1);
-		snprintf(line3,32,"%2d",int(samples[0].speed*10));
+		snprintf(line3,32,"%2d %2d",int(samples[0].speed*10),int(speed*10));
 		field.display.Fill(false);
 		field.display.SetCursor(0,0);
 		field.display.WriteString(line1, Font_7x10 , true);
@@ -190,7 +207,8 @@ void UpdateDisplay(char c[32], bool message_only){
 }
 
 void UpdateControls(){
-	speed=4.0*knob_vals[0];
+	speed=float(int(20.0*knob_vals[6]))/10.0;
+	if(speed==0)speed=0.1;
 	if(knob_vals[7]<0.5)speed=-speed;
 	idx_0=int(knob_vals[1]*sample_size/100)*100;
 	idx_0=idx_0+int(knob_vals[2]*sample_size/10);
@@ -199,9 +217,9 @@ void UpdateControls(){
 	for(size_t j = 0; j < num_samples; j++){
 		if(key_vals[j]) {
 			if(mode==0){
-	                        if(System::GetNow()>copy_time){
-				    copy_time=System::GetNow()+1000;
-				    samples[j].CopySample(idx_0,idx_1,j,speed);
+				if(System::GetNow()>copy_time){
+					copy_time=System::GetNow()+1000;
+					samples[j].CopySample(idx_0,idx_1,j,speed);
 				}
 			}else{
 				samples[j].Active(true);
@@ -232,7 +250,7 @@ void sdcard_init() {
 		unsigned long int file_size = header.FileSize;
 		sample_size=header.FileSize/2;
 		if ( sample_size > buffer_size){
-		       	file_size=2*buffer_size;
+			file_size=2*buffer_size;
 			sample_size=buffer_size;
 		}
 		f_read(&file_object, &buff,  file_size, &bytes_read);
@@ -253,7 +271,6 @@ int main(void) {
 	field.StartAdc();
 	field.SetAudioBlockSize(blocksize);
 	field.StartAudio(AudioCallback);
-	char message[32];
 	for(;;)
 	{
 		UpdateControls();
