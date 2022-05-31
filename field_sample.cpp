@@ -29,7 +29,6 @@ class FieldSample{
 		bool Active(bool activate=false){
 			if(activate){
 				active=true;
-				idx=idx_0;
 				step_location=0.0;
 			}
 			return(active);
@@ -41,21 +40,21 @@ class FieldSample{
 				// speed != 1 and slow
 				step_location+=speed;
 				idx=int(step_location);
-				if(idx<idx_0 or idx>idx_1){
-			           snprintf(message,32,"ERROR idx:%ld",idx);
+				if(idx<0 or idx>size){
+			           snprintf(message,32,"idx:%ld %f",idx,step_location);
 				   sleep(2);
 			           UpdateDisplay(message,true);
 				   sleep(2);
 
 				}
-				if(idx+1<=idx_1){
+				if(idx+1<=size){
 					percent=step_location-float(idx);
 					return((1.0-percent)*sample_space[key_id][idx]+percent*sample_space[key_id][idx+1]);
 				}
 				if(!loop){
 					active=false;
 				}else{
-					idx=idx_0;
+					idx=0;
 					step_location=0;
 				}
 			}
@@ -63,21 +62,18 @@ class FieldSample{
 		}
 		void CopySample(unsigned long int s, unsigned long int f, int n, float spd){
 			key_id=n;
-			long int size=labs(f-s);
+			size=labs(f-s);
 			if(size>snip_size)size=snip_size;
 			snprintf(message,32,"key=%d spd=%d",n,int(spd));
 			UpdateDisplay(message,true);
-			for(long int i=0;i<size;i++){
+			for(unsigned long int i=0;i<size;i++){
 				if ( spd > 0){
-					sample_space[key_id][last_idx+i]=s162f(buff[s+i]);
+					sample_space[key_id][i]=s162f(buff[s+i]);
 				}else{
-					sample_space[key_id][last_idx+i]=s162f(buff[f-i]);
+					sample_space[key_id][i]=s162f(buff[f-i]);
 				}
 			}
 			speed=fabs(spd);
-			idx_0=last_idx;
-			idx_1=last_idx+size;
-			last_idx=idx_1;
 		}
 
 
@@ -86,15 +82,13 @@ class FieldSample{
 		float speed, step_location, percent;
 		// starting index
 		int key_id;
-		unsigned long int idx, idx_0, idx_1, size;
+		unsigned long int idx, size;
 		bool loop, active;
-		static unsigned long int last_idx;
 };
 
 size_t num_samples=8, num_active=0;
 std::vector<FieldSample> samples(num_samples);
 
-unsigned long int FieldSample::last_idx=0;
 
 // Use two side buttons to change octaves.
 float knob_vals[8];
@@ -191,7 +185,7 @@ void UpdateDisplay(char c[32], bool message_only){
 	if(System::GetNow()>display_time){
 		display_time=System::GetNow()+1000;
 		snprintf(line1,32,"%ld %ld\n",idx_0,idx_1);
-		snprintf(line2,32,"%ld %ld %ld",samples[0].idx,samples[0].idx_0,samples[0].idx_1);
+		snprintf(line2,32,"%ld %ld",samples[0].idx,samples[0].size);
 		snprintf(line3,32,"%2d %2d",int(samples[0].speed*10),int(speed*10));
 		field.display.Fill(false);
 		field.display.SetCursor(0,0);
