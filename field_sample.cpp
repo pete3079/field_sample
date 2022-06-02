@@ -40,13 +40,6 @@ class FieldSample{
 				// speed != 1 and slow
 				step_location+=speed;
 				idx=int(step_location);
-				if(idx<0 or idx>size){
-			           snprintf(message,32,"idx:%ld %f",idx,step_location);
-				   sleep(2);
-			           UpdateDisplay(message,true);
-				   sleep(2);
-
-				}
 				if(idx+1<=size){
 					percent=step_location-float(idx);
 					return((1.0-percent)*sample_space[key_id][idx]+percent*sample_space[key_id][idx+1]);
@@ -207,12 +200,12 @@ void UpdateControls(){
 	idx_0=int(knob_vals[1]*sample_size/100)*100;
 	idx_0=idx_0+int(knob_vals[2]*sample_size/10);
 	idx_1=int(knob_vals[3]*sample_size/100)*100;
-	if(idx_1>=sample_size)idx_1=sample_size;
+	if(idx_1>=sample_size)idx_1=sample_size-1;
 	for(size_t j = 0; j < num_samples; j++){
 		if(key_vals[j]) {
 			if(mode==0){
 				if(System::GetNow()>copy_time){
-					copy_time=System::GetNow()+1000;
+					copy_time=System::GetNow()+100;
 					samples[j].CopySample(idx_0,idx_1,j,speed);
 				}
 			}else{
@@ -244,8 +237,8 @@ void sdcard_init() {
 		unsigned long int file_size = header.FileSize;
 		sample_size=header.FileSize/2;
 		if ( sample_size > buffer_size){
-			file_size=2*buffer_size;
-			sample_size=buffer_size;
+			file_size=buffer_size;
+			sample_size=buffer_size/2;
 		}
 		f_read(&file_object, &buff,  file_size, &bytes_read);
 	}
